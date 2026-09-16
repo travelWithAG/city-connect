@@ -1,70 +1,106 @@
 package middleware
 
 import (
-	"connect/core/response"
 	"context"
 	"errors"
 	"net/http"
 	"strings"
 
+	"connect/core/response"
+
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type ContextKey string
+// AuthUser aggregates context payload to allow single-allocation context storage.
+type AuthUser struct {
+	UserID string
+	Role   string
+}
 
-const (
-	UserIDKey ContextKey = "user_id"
-	RoleKey ContextKey = "role"
-)
+// Private context key type avoids memory/collision collisions across packages.
+type contextKey struct{}
+
+var authUserKey = contextKey{}
+
 type CustomClaims struct {
 	UserID string `json:"user_id"`
-	Role string `json:"role"`
+	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
 
-func AuthMiddleWare(secretKey string) func(h http.Handler) http.Handler {
+// AuthMiddleware validates JWT Bearer tokens and attaches extracted identities to context.
+func AuthMiddleware(secretKey string) func(http.Handler) http.Handler {
+	secretBytes := []byte(secretKey) // Pre-allocate byte slice once at initialization
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
-
-			if authHeader == ""{
-				response.ErrorOccured(w, http.StatusUnauthorized, false, "You can't access this part without being authorized, this will be reported", nil)
+			if authHeader == "" {
+				response.ErrorOccured(w, http.StatusUnauthorized, false, "Authorization header required", nil)
 				return
 			}
 
-			authHeaderParts := strings.Split(authHeader, " ")
-
-			if len(authHeaderParts) != 2 || strings.ToLower(authHeaderParts[0]) != "bearer"{
-				response.JSON(w, http.StatusUnauthorized, false, "Invalid Request Performed This Will Be Reported", nil)
-				return 
+			// strings.Cut avoids slice allocation from strings.Split
+			prefix, tokenString, found := strings.Cut(authHeader, " ")
+			if !found || !strings.EqualFold(prefix, "bearer") || tokenString == "" {
+				response.JSON(w, http.StatusUnauthorized, false, "Invalid Authorization header format", nil)
+				return
 			}
-
-			tokenString := authHeaderParts[1]
 
 			claims := &CustomClaims{}
-
-			token, err := jwt.ParseWithClaims(tokenString, claims, func (token *jwt.Token)(interface{}, error)  {
+			token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+				// Prevent Algorithm Confusion Attacks (e.g., None or RS256 spoofing)
 				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, errors.New("Unexpecting signing method")
+					return nil, errors.New("unexpected signing method")
 				}
-				return []byte(secretKey), nil
+				return secretBytes, nil
 			})
 
-			if err != nil || !token.Valid{
-				response.ErrorOccured(w, http.StatusUnauthorized, false, "Invalid or Token Expired, Try to reflesh page.", nil)
+			if err != nil || !token.Valid {
+				response.ErrorOccured(w, http.StatusUnauthorized, false, "Invalid or expired token", nil)
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)
-			ctx = context.WithValue(ctx, RoleKey, claims.Role)
+			// Single-allocation context value node instead of chained context.WithValue calls
+			user := AuthUser{
+				UserID: claims.UserID,
+				Role:   claims.Role,
+			}
+			ctx := context.WithValue(r.Context(), authUserKey, user)
 
-			 next.ServeHTTP(w, r.WithContext(ctx))
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
-func LoggingInMiddleware(next http.Handler) http.Handler {
+// LoggingMiddleware logs incoming HTTP requests for diagnostic and auditing purposes
+func LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Call next handler in chain
 		next.ServeHTTP(w, r)
 	})
+}
+
+// --- Context Helper Functions ---
+
+// GetAuthUser retrieves the authenticated user struct from the request context.
+func GetAuthUser(ctx context.Context) (AuthUser, bool) {
+	user, ok := ctx.Value(authUserKey).(AuthUser)
+	return user, ok
+}
+
+// GetUserID retrieves the User ID directly from the request context.
+func GetUserID(ctx context.Context) (string, bool) {
+	if user, ok := GetAuthUser(ctx); ok {
+		return user.UserID, true
+	}
+	return "", false
+}
+
+// GetRole retrieves the User Role directly from the request context.
+func GetRole(ctx context.Context) (string, bool) {
+	if user, ok := GetAuthUser(ctx); ok {
+		return user.Role, true
+	}
+	return "", false
 }

@@ -9,23 +9,25 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/gorilla/mux"
 )
 
-func StartServer(){
+func StartServer(router *mux.Router){
 	cfg := LoadAppConfig("")
 
 	port := cfg.AppPort
 
 	srv := &http.Server{
-		Addr: port,
-		//Place Router to be used as handler in app
+		Addr: fmt.Sprintf(":%s", port),
+		Handler: router,
 		ReadTimeout: 5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 		IdleTimeout: 6 * time.Second,
 	}
 
 	go func(){
-		fmt.Printf("Server started %v application listening at %v\n", cfg.AppName, cfg.AppPort)
+		fmt.Printf("\n[SERVER]: Started %v application listening at %v\n", cfg.AppName, cfg.AppPort)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Fatal Error, Failed to listen at %v, : %v\n", cfg.AppPort, err)
 		}

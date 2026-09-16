@@ -45,7 +45,7 @@ func LoadAppConfig(drv string) *AppConfig {
 	}
 
 	cfg := &AppConfig{
-		AppName:    getEnv("APP_NAME", "CityConnect"),
+		AppName:    getEnv("APP_NAME", "CITY CONNECT"),
 		AppVersion: getEnv("APP_VERSION", "latest"),
 		AppEnv:     getEnv("APP_ENV", "development"),
 		AppPort:    getEnv("APP_PORT", "8080"),
@@ -68,14 +68,14 @@ func LoadAppConfig(drv string) *AppConfig {
 		RedisDB:    getEnvAsInt("REDIS_DB", 0),
 	}
 
-	fmt.Printf("[%s] Configuration Loaded for City Connect Platform, Running at [%s]:[%s]\n Database cfg [%s %s %s]", cfg.AppName, "127.0.0.1", cfg.AppPort, cfg.DbConfig.DBHost, cfg.DbConfig.DBPort, cfg.DbConfig.DBName)
+	fmt.Printf("\n[%s]: Configuration Loaded for City Connect Platform, \nRunning at [%s]:[%s]\nDatabase is at [%s %s %s]", cfg.AppName, "127.0.0.1", cfg.AppPort, cfg.DbConfig.DBHost, cfg.DbConfig.DBPort, cfg.DbConfig.DBName)
 	
 	return cfg
 }
 
 func getEnv(key string, defaultValue string) string {
 	found, exists := os.LookupEnv(key)
-	fmt.Printf("Loading environment variable: %s\n Default value: %v Existing value is: %v", key, found, exists)
+	fmt.Printf("Loading environment variable: %s\n Default value: %v Existing value is: %v\n", key, found, exists)
 	if exists {
 		return found
 	}

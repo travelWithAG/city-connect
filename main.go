@@ -1,8 +1,13 @@
 package main
 
 import (
+	"connect/core/config"
 	"connect/core/db"
+	"connect/core/middleware"
+	"connect/routers"
 	"fmt"
+
+	"github.com/gorilla/mux"
 )
 
 func main() {
@@ -14,5 +19,16 @@ func main() {
 	}
 
 	_ = db
+
+	router := mux.NewRouter()
+
+	router.Use(middleware.CORS)
+	router.Use(middleware.LoggingMiddleware)
+
+	routers.GeneratePublicApiRoute(router)
+
+	routers.GenerateApiRoute(router)
+
+	config.StartServer(router)
 	
 }
