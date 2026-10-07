@@ -51,6 +51,6 @@ func StartServer(router *mux.Router){
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-	fmt.Printf("%v stopped/shutdown properly.\n", cfg.AppName)
+	fmt.Printf("[%v]: Stopped/shutdown properly.\n", cfg.AppName)
 
 }
